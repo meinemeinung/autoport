@@ -7,7 +7,25 @@ import configparser
 from typing import Dict, List
 
 class Portfolio:
+    """
+    A class to represent a financial portfolio and perform various computations.
+
+    Attributes:
+        file_path (str): The file path to the input data file.
+        config_path (str): The file path to the configuration file.
+        start_date (dt.datetime): The start date of the portfolio data.
+        end_date (dt.datetime): The end date of the portfolio data.
+
+    Methods:
+        process_all(self):
+            Processes all computations for the portfolio.
+    """
+
     def __init__(self, file_path: str, config_path: str, start_date: dt.datetime, end_date: dt.datetime) -> None:
+        '''
+        Initializes the Portfolio object with provided parameters.
+        '''
+
         self.file_path = file_path
         self.config = configparser.ConfigParser()
         self.config.read(config_path)
@@ -16,6 +34,10 @@ class Portfolio:
         self.__initialize_portfolio_data()
     
     def __set_trading_days(self, start_date: dt.datetime, end_date: dt.datetime) -> None:
+        '''
+        Sets the trading days based on the provided start and end dates.
+        '''
+
         benchmark_price = yf.download(
             self.config['Tickers']['benchmark'],
             start_date,
@@ -25,6 +47,10 @@ class Portfolio:
         self.__trading_days = pd.to_datetime(benchmark_price.index).tz_localize(None)
     
     def __initialize_portfolio_data(self) -> None:
+        '''
+        Initializes portfolio data from input files.
+        '''
+
         file = pd.read_excel(self.file_path, sheet_name=None)
 
         self.transaction_list = file['trx_list']
@@ -50,6 +76,10 @@ class Portfolio:
         self.port_cash_flow = []
         
     def __get_corp_act_on_date(self, date: dt.datetime) -> Dict[str, pd.DataFrame]:
+        '''
+        Retrieves corporate actions on a specific date.
+        '''
+
         ca_list = {}
         ca_list['dividend'] = self.corp_act[
             (self.corp_act['ca_type']=='Dividend') & 
@@ -69,17 +99,29 @@ class Portfolio:
         return ca_list
 
     def __fill_forward_portfolio_data(self, date: dt.datetime):
+        '''
+        Fills forward portfolio data for a specific date.
+        '''
+
         prev_date = self.__date_list[self.__date_list < date].max()
         self.port_cash[date] = self.port_cash[prev_date]
         self.port_shares[date] = copy.deepcopy(self.port_shares[prev_date])
 
     def __update_portfolio_on_corp_act(self, date: dt.datetime):
+        '''
+        Updates portfolio based on corporate actions on a specific date.
+        '''
+
         ca_list = self.__get_corp_act_on_date(date)
         self.__update_portfolio_on_dividend(ca_list['dividend'])
         self.__update_portfolio_on_stock_split(ca_list['stock_split'])
         self.__update_portfolio_on_stock_dividend(ca_list['stock_dividend'])
 
     def __update_portfolio_on_dividend(self, dividends: pd.DataFrame):
+        '''
+        Updates portfolio based on dividend corporate actions.
+        '''
+
         for i, div in dividends.iterrows():
             if div['ticker'] in self.port_shares[div['cum_date']].index:
                 share_eligible = self.port_shares[div['cum_date']].loc[
@@ -93,6 +135,10 @@ class Portfolio:
             self.port_cash_flow.append({'date':div['payment_date'], 'cash_flow':cash_flow, 'type':'dividend'})
 
     def __update_portfolio_on_stock_split(self, splits: pd.DataFrame):
+        '''
+        Updates portfolio based on stock split corporate actions.
+        '''
+        
         for i, split in splits.iterrows():
             current_shares = self.port_shares[split['cum_date']].loc[
                 split['ticker'], 'amount_of_shares'
@@ -110,6 +156,10 @@ class Portfolio:
             ] = avg_price / split['ratio_old_new']
 
     def __update_portfolio_on_stock_dividend(self, stock_dividends: pd.DataFrame):
+        '''
+        Updates portfolio based on stock dividend corporate actions.
+        '''
+
         for i, stock_div in stock_dividends.iterrows():
             current_shares = self.port_shares[stock_div['cum_date']].loc[
                 stock_div['ticker'], 'amount_of_shares'
@@ -120,6 +170,10 @@ class Portfolio:
             ] = np.floor(current_shares * (1 + 1/stock_div['ratio_old_new']))
 
     def __update_portfolio_on_transaction(self, transaction: pd.Series):
+        '''
+        Updates portfolio based on transaction data.
+        '''
+
         ticker, date = transaction['ticker'], transaction['date']
 
         if transaction['transaction_type']=='Transfer':
@@ -161,6 +215,10 @@ class Portfolio:
             self.port_shares[date][self.port_shares[date]['amount_of_shares'] != 0].sort_index().copy()
 
     def __compute_port_shares_adj(self):
+        '''
+        Computes adjusted portfolio shares based on corporate actions.
+        '''
+
         self.port_shares_adj = copy.deepcopy(self.port_shares)
         splits = self.corp_act[self.corp_act['ca_type']=='Stock Split']
 
@@ -171,6 +229,10 @@ class Portfolio:
                 self.port_shares_adj[date].loc[split['ticker'], 'average_price'] /= split['ratio_old_new']
 
     def __compute_market_value(self):
+        '''
+        Computes market value of the portfolio.
+        '''
+
         self.__compute_port_shares_adj()
         ticker_list = pd.concat(self.port_shares_adj).index.get_level_values(1).unique().to_list()
         yf_ticker_list = [ticker + self.config['Tickers']['country'] for ticker in ticker_list]
@@ -184,7 +246,7 @@ class Portfolio:
         price = price['Close']
         price.columns = price.columns.str.split('.').str[0]
         for date, holding in self.port_shares_adj.items():
-            if date in self.__date_list_trading:
+            if date in self.__trading_days:
                 self.port_equity[date] = copy.deepcopy(holding)
                 curr_holding = holding.index
                 self.port_equity[date]['market_price'] = price.loc[date, curr_holding]
@@ -195,6 +257,10 @@ class Portfolio:
             self.port_total[date] = self.port_equity[date]['market_value'].sum() + self.port_cash[date]
 
     def __compute_nav(self):
+        '''
+        Computes Net Asset Value (NAV) of the portfolio.
+        '''
+
         cash_flow = pd.DataFrame.from_records(self.port_cash_flow)
         self.subs_redeem = cash_flow[cash_flow['type']=='transfer']
         self.subs_redeem = self.subs_redeem.groupby("date").sum()['cash_flow']
@@ -213,19 +279,30 @@ class Portfolio:
                 self.port_unit.loc[date] = self.port_unit.loc[prev_date] + unit_created
             self.port_nav.loc[date] = self.port_total.loc[date]/self.port_unit.loc[date]
 
-    def update(self):
-        for date in self.__date_list:
-            if date != self.__date_list[0]:
+    def __compute_portfolio_data(self):
+        '''
+        Computes various portfolio data.
+        '''
+
+        for i, date in enumerate(self.__date_list):
+            if i != 0:
                 self.__fill_forward_portfolio_data(date)
+
             self.__update_portfolio_on_corp_act(date)
             transactions = self.transaction_list[self.transaction_list['date']==date]
             for _, row in transactions.iterrows():
                 self.__update_portfolio_on_transaction(row)
-        
+                
+    def process_all(self):
+        '''
+        Processes all computations for the portfolio.
+        '''
+
+        self.__compute_portfolio_data()
         self.__compute_market_value()
         self.__compute_nav()
 
-    def to_excel(self, file_path):
+    def export_to_excel(self, file_path: str):
         with pd.ExcelWriter(file_path, engine='xlsxwriter') as writer:
             self.transaction_list.to_excel(writer, sheet_name='Transaction')
 
