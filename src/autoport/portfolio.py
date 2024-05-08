@@ -21,7 +21,13 @@ class Portfolio:
             Processes all computations for the portfolio.
     """
 
-    def __init__(self, file_path: str, config_path: str, start_date: dt.datetime, end_date: dt.datetime) -> None:
+    def __init__(
+            self,
+            file_path: str,
+            config_path: str,
+            start_date: dt.datetime,
+            end_date: dt.datetime
+            ) -> None:
         '''
         Initializes the Portfolio object with provided parameters.
         '''
@@ -33,13 +39,17 @@ class Portfolio:
         self.__set_trading_days(start_date, end_date)
         self.__initialize_portfolio_data()
     
-    def __set_trading_days(self, start_date: dt.datetime, end_date: dt.datetime) -> None:
+    def __set_trading_days(
+            self,
+            start_date: dt.datetime,
+            end_date: dt.datetime
+            ) -> None:
         '''
         Sets the trading days based on the provided start and end dates.
         '''
 
         benchmark_price = yf.download(
-            self.config['Tickers']['benchmark'],
+            self.config['YahooFinance.Tickers']['benchmark'],
             start_date,
             end_date+dt.timedelta(days=1),
             progress=False
@@ -75,7 +85,10 @@ class Portfolio:
         
         self.port_cash_flow = []
         
-    def __get_corp_act_on_date(self, date: dt.datetime) -> Dict[str, pd.DataFrame]:
+    def __get_corp_act_on_date(
+            self,
+            date: dt.datetime
+            ) -> Dict[str, pd.DataFrame]:
         '''
         Retrieves corporate actions on a specific date.
         '''
@@ -122,7 +135,7 @@ class Portfolio:
         Updates portfolio based on dividend corporate actions.
         '''
 
-        for i, div in dividends.iterrows():
+        for _, div in dividends.iterrows():
             if div['ticker'] in self.port_shares[div['cum_date']].index:
                 share_eligible = self.port_shares[div['cum_date']].loc[
                     div['ticker'], 'amount_of_shares'
@@ -139,7 +152,7 @@ class Portfolio:
         Updates portfolio based on stock split corporate actions.
         '''
         
-        for i, split in splits.iterrows():
+        for _, split in splits.iterrows():
             current_shares = self.port_shares[split['cum_date']].loc[
                 split['ticker'], 'amount_of_shares'
                 ]
@@ -160,7 +173,7 @@ class Portfolio:
         Updates portfolio based on stock dividend corporate actions.
         '''
 
-        for i, stock_div in stock_dividends.iterrows():
+        for _, stock_div in stock_dividends.iterrows():
             current_shares = self.port_shares[stock_div['cum_date']].loc[
                 stock_div['ticker'], 'amount_of_shares'
             ]
@@ -177,14 +190,10 @@ class Portfolio:
         ticker, date = transaction['ticker'], transaction['date']
 
         if transaction['transaction_type']=='Transfer':
-
-            ## Update Port Cash
             self.port_cash[date] += transaction['price']
             self.port_cash_flow.append({'date':date, 'cash_flow':transaction['price'], 'type':'transfer'})
 
         elif transaction['transaction_type']=='Buy':
-
-            ## Update Port Cash
             cash_flow = transaction['price'] * transaction['amount'] * (1 + transaction['tax'])
             self.port_cash[date] -= cash_flow
             self.port_cash_flow.append({'date':date, 'cash_flow':-cash_flow, 'type':'purchase'})
@@ -222,7 +231,7 @@ class Portfolio:
         self.port_shares_adj = copy.deepcopy(self.port_shares)
         splits = self.corp_act[self.corp_act['ca_type']=='Stock Split']
 
-        for i, split in splits.iterrows():
+        for _, split in splits.iterrows():
             update_date = self.__date_list[self.__date_list < split['ex_date']]
             for date in update_date:
                 self.port_shares_adj[date].loc[split['ticker'], 'amount_of_shares'] *= split['ratio_old_new']
@@ -235,7 +244,7 @@ class Portfolio:
 
         self.__compute_port_shares_adj()
         ticker_list = pd.concat(self.port_shares_adj).index.get_level_values(1).unique().to_list()
-        yf_ticker_list = [ticker + self.config['Tickers']['country'] for ticker in ticker_list]
+        yf_ticker_list = [ticker + self.config['YahooFinance.Tickers']['country'] for ticker in ticker_list]
         price = yf.download(
             yf_ticker_list,
             self.__date_list[0],
