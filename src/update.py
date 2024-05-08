@@ -31,7 +31,9 @@ def main():
             end_date=date
         )
         port.process_all()
-        port.export_to_excel(os.path.join(args.target, filename))
+
+        target_filename = f'{filename.split(".")[0]}-result.xlsx'
+        port.export_to_excel(os.path.join(args.target, target_filename))
 
 if __name__=='__main__':
     main()
