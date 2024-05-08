@@ -23,3 +23,8 @@ pip install -r requirements.txt
 ```bash
 python src\update.py [LAST_UPDATE_DATE] [PATH_TO_EXCEL_SOUCE_FILE] --config [PATH_TO_CONFIG] --target [TARGET_DIRECTORY]
 ```
+
+Example
+```bash
+python src\update.py 20240430 file/example.xlsx --config ./config/config.ini --target result/
+```
