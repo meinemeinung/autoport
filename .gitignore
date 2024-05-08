@@ -8,8 +8,9 @@ __pycache__/
 
 autoport-env
 .vscode
-config/
 file/
+result/
+*.xlsx
 
 # Distribution / packaging
 .Python
