@@ -11,7 +11,8 @@ autoport-env
 *.xlsx
 file/*
 !file/example.xlsx
-result/
+result/*
+!result/example-result.xlsx
 
 # Distribution / packaging
 .Python
